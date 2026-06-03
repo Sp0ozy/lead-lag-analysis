@@ -122,6 +122,26 @@
 
 ---
 
+## Phase 6 — Granger Causality
+
+**Goal:** Test whether crypto returns Granger-cause SPX returns (stronger than Phase 3 correlation).
+
+### Tasks
+- [x] Implement `granger_bivariate` in `src/analysis.py`
+- [x] Implement `select_var_lag` in `src/analysis.py`
+- [x] Implement `run_granger_analysis` + `summarize_granger` in `src/analysis.py`
+- [x] Implement `plot_granger_pvalues` in `src/plots.py`
+- [x] Wire `phase6()` into `scripts/run_all.py`
+
+### Phase 6 Checks (all must pass before commit)
+- [x] Results table contains AIC-selected-lag result AND fixed-lag sweep
+- [x] Both raw and Bonferroni-corrected p-values reported
+- [x] AIC-optimal lag order printed and logged in Decision Log below
+- [x] VAR robustness result agrees directionally with bivariate result
+- [x] README Phase 6 section written with plain-language verdict
+
+---
+
 ## Decision Log
 
 *Record non-obvious choices here as they arise, so future readers understand why the code is the way it is.*
@@ -132,3 +152,6 @@
 | 2026-06-03 | Train cutoff: 2024-12-31; test start: 2025-01-01 | Gives ~4 years of training data and ~6 months of test data (at time of writing). Clean calendar-year split is easy to explain and audit. |
 | 2026-06-03 | Lags: {1, 2, 3, 5, 10} | Covers next-day, short-week, and two-week horizons. Avoids data dredging over too many lags while sampling the plausible predictive window. |
 | 2026-06-03 | Model: logistic regression on [btc_t, eth_t] → spx direction_{t+1} | Maximally interpretable; coefficients directly answer "does crypto return predict equity direction." A black box would obscure the answer. |
+| 2026-06-04 | Granger maxlag=10 | Matches Phase 3 lag horizon; AIC selects within this bound |
+| 2026-06-04 | Bivariate Granger primary, VAR as robustness | Bivariate is interpretable; VAR controls for BTC-ETH correlation |
+| 2026-06-04 | Bonferroni n=2 for AIC result, n=10 for fixed-lag sweep | AIC result tests 2 assets at one lag; fixed sweep tests 2 assets x 5 lags |

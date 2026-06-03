@@ -7,7 +7,7 @@ ROOT = pathlib.Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
 from src.data import build_returns, load_prices, align_to_equity_calendar
-from src.analysis import run_eda_stats, run_lag_analysis, summarize_lead_lag
+from src.analysis import run_eda_stats, run_lag_analysis, summarize_lead_lag, run_granger_analysis, summarize_granger
 from src.plots import (
     plot_prices,
     plot_returns,
@@ -15,6 +15,7 @@ from src.plots import (
     plot_correlation_matrix,
     plot_lag_correlation,
     plot_backtest,
+    plot_granger_pvalues,
 )
 from src.model import (
     make_features,
@@ -315,6 +316,27 @@ The model's directional accuracy {"exceeds" if accuracy > naive_acc else "does n
     (root / "README.md").write_text(readme, encoding="utf-8")
 
 
+def phase6(returns) -> dict:
+    print("\n" + "=" * 60)
+    print("PHASE 6 -- Granger Causality")
+    print("=" * 60)
+    granger_results = run_granger_analysis(returns, maxlag=10)
+    verdict = summarize_granger(granger_results)
+
+    p = plot_granger_pvalues(granger_results)
+    print(f"Saved: {p}")
+
+    for asset, data in granger_results["assets"].items():
+        assert "p_bonferroni" in data["fixed_sweep"].columns, \
+            f"Phase 6 FAIL: missing Bonferroni column for {asset}"
+        assert "aic_result" in data, \
+            f"Phase 6 FAIL: missing AIC result for {asset}"
+        assert "var_pvalue" in data, \
+            f"Phase 6 FAIL: missing VAR robustness p-value for {asset}"
+    print("\nPhase 6 checks: PASSED")
+    return granger_results
+
+
 if __name__ == "__main__":
     # Phase 1
     returns = phase1()
@@ -330,6 +352,9 @@ if __name__ == "__main__":
 
     # Phase 5
     phase5(returns, lag_results, bt)
+
+    # Phase 6
+    granger_results = phase6(returns)
 
     print("\n" + "=" * 60)
     print("ALL PHASES COMPLETE")
