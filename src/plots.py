@@ -155,6 +155,76 @@ def plot_backtest(
     return _save(fig, "backtest_results.png")
 
 
+def plot_regime_bands(
+    signal: pd.Series,
+    regimes: pd.Series,
+    label: str,
+) -> pathlib.Path:
+    """Time series of regime signal with high/low periods shaded in red/blue."""
+    fig, ax = plt.subplots(figsize=(12, 4))
+    ax.plot(signal.index, signal.values, color="steelblue", linewidth=0.8, label=label)
+    regime_vals = regimes.reindex(signal.index).fillna(False)
+    ax.fill_between(
+        signal.index, float(signal.min()), float(signal.max()),
+        where=regime_vals.values.astype(bool),
+        alpha=0.2, color="tomato", label="High regime",
+    )
+    threshold = float(signal.median())
+    ax.axhline(threshold, color="red", linestyle="--", linewidth=0.8,
+               label=f"Median threshold ({threshold:.2f})")
+    ax.set_title(f"{label}: High/Low Regime Split (median threshold)")
+    ax.set_ylabel(label)
+    ax.legend(fontsize=8)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
+    fig.autofmt_xdate()
+    fname = f"regime_bands_{label.lower().replace(' ', '_')}.png"
+    return _save(fig, fname)
+
+
+def plot_regime_lag_correlation(
+    regime_results: dict[str, dict[str, pd.DataFrame]],
+    label: str,
+    bonferroni_alpha: float = 0.05,
+) -> pathlib.Path:
+    """2x2 grid: (BTC, ETH) x (high, low) regime lag correlation bars."""
+    from scipy import stats as _stats
+
+    assets = ["BTC-USD", "ETH-USD"]
+    regime_names = ["high", "low"]
+    n_tests = 10  # 5 lags x 2 assets, matching Phase 3
+
+    fig, axes = plt.subplots(2, 2, figsize=(13, 8), sharey=True)
+
+    for col_idx, asset in enumerate(assets):
+        for row_idx, regime_name in enumerate(regime_names):
+            ax = axes[row_idx][col_idx]
+            df = regime_results[regime_name][asset].reset_index()
+            colors = ["tomato" if sig else "steelblue"
+                      for sig in df["significant_raw"]]
+            ax.bar(df["lag"].astype(str), df["r"], color=colors, alpha=0.8)
+            ax.axhline(0, color="black", linewidth=0.5)
+            n_min = max(int(df["n"].min()), 3)
+            bonf_p = bonferroni_alpha / n_tests
+            t_crit = _stats.t.ppf(1 - bonf_p / 2, df=n_min - 2)
+            r_crit = t_crit / np.sqrt(t_crit**2 + n_min - 2)
+            ax.axhline(r_crit, color="red", linewidth=1, linestyle="--",
+                       label=f"Bonferroni (+-{r_crit:.3f})")
+            ax.axhline(-r_crit, color="red", linewidth=1, linestyle="--")
+            ax.set_title(f"{asset}  |  {regime_name.upper()} {label}")
+            ax.set_xlabel("Lag k")
+            ax.set_ylabel("Pearson r")
+            ax.legend(fontsize=7)
+
+    fig.suptitle(
+        f"Regime-Conditional Lag Correlation ({label} split)\n"
+        f"Red=p<0.05 uncorrected  |  Dashed=Bonferroni threshold",
+        fontsize=12,
+    )
+    fig.tight_layout()
+    fname = f"regime_lag_correlation_{label.lower().replace(' ', '_')}.png"
+    return _save(fig, fname)
+
+
 def plot_granger_pvalues(
     results: dict,
     bonferroni_alpha: float = 0.05,
