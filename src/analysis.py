@@ -203,6 +203,12 @@ def run_granger_analysis(
     return results
 
 
+def define_regimes(signal: pd.Series, threshold: float = None) -> pd.Series:
+    """Return boolean mask (True = high regime, at or above threshold or median)."""
+    t = threshold if threshold is not None else float(signal.median())
+    return (signal >= t).rename("high_regime")
+
+
 def summarize_granger(results: dict) -> str:
     """Plain-English verdict on Granger causality evidence."""
     any_bonf = any(

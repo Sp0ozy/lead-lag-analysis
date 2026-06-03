@@ -80,3 +80,29 @@ def test_summarize_granger_returns_string(synthetic_returns):
     verdict = summarize_granger(results)
     assert isinstance(verdict, str)
     assert len(verdict) > 0
+
+
+# ── define_regimes ────────────────────────────────────────────────────────────
+def test_define_regimes_median_split():
+    from src.analysis import define_regimes
+    signal = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0],
+                       index=pd.bdate_range("2021-01-01", periods=5))
+    regimes = define_regimes(signal)
+    assert regimes.dtype == bool
+    # Values >= median(3.0): 3, 4, 5 -> True
+    assert regimes.sum() == 3
+
+def test_define_regimes_explicit_threshold():
+    from src.analysis import define_regimes
+    signal = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0],
+                       index=pd.bdate_range("2021-01-01", periods=5))
+    regimes = define_regimes(signal, threshold=4.0)
+    # Values >= 4.0: 4, 5 -> True
+    assert regimes.sum() == 2
+
+def test_define_regimes_name():
+    from src.analysis import define_regimes
+    signal = pd.Series([1.0, 2.0, 3.0], index=pd.bdate_range("2021-01-01", periods=3),
+                       name="VIX")
+    regimes = define_regimes(signal)
+    assert regimes.name == "high_regime"
