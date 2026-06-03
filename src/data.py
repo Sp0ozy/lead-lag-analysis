@@ -95,3 +95,20 @@ def build_returns() -> pd.DataFrame:
     returns = compute_log_returns(prices_aligned)
     save_processed(returns)
     return returns
+
+
+def download_vix() -> pd.Series:
+    """Download VIX closing level aligned to the equity trading calendar.
+
+    Uses the same download_raw cache as other symbols.
+    VIX itself is used only as a regime-split signal, never as an analysis input.
+    """
+    end = date.today().isoformat()
+    vix_raw = download_raw("^VIX", START_DATE, end)
+    eq_raw = download_raw("^GSPC", START_DATE, end)
+    equity_dates = pd.to_datetime(eq_raw.dropna().index)
+    vix = vix_raw["^VIX"].reindex(equity_dates).ffill()
+    assert vix.isna().sum() == 0, "VIX has NaN after alignment"
+    vix.name = "VIX"
+    vix.index.name = "Date"
+    return vix
