@@ -28,3 +28,27 @@ def causal_returns():
     spx_vals[0] = np.random.normal(0, 0.01)
     spx = pd.Series(spx_vals, index=dates, name="^GSPC")
     return pd.concat([btc, eth, spx], axis=1)
+
+# ── granger_bivariate ─────────────────────────────────────────────────────────
+def test_granger_bivariate_returns_correct_shape(synthetic_returns):
+    from src.analysis import granger_bivariate
+    result = granger_bivariate(
+        synthetic_returns["BTC-USD"], synthetic_returns["^GSPC"], maxlag=3
+    )
+    assert list(result.columns) == ["f_stat", "p_raw"]
+    assert result.index.tolist() == [1, 2, 3]
+
+def test_granger_bivariate_pvalues_in_range(synthetic_returns):
+    from src.analysis import granger_bivariate
+    result = granger_bivariate(
+        synthetic_returns["BTC-USD"], synthetic_returns["^GSPC"], maxlag=5
+    )
+    assert (result["p_raw"] >= 0).all() and (result["p_raw"] <= 1).all()
+
+def test_granger_bivariate_detects_true_cause(causal_returns):
+    from src.analysis import granger_bivariate
+    result = granger_bivariate(
+        causal_returns["BTC-USD"], causal_returns["^GSPC"], maxlag=3
+    )
+    # With 0.6 * BTC[t-1] causing SPX[t], p at lag 1 must be very small
+    assert result.loc[1, "p_raw"] < 0.001

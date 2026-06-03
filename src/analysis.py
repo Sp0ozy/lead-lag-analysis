@@ -110,3 +110,25 @@ def summarize_lead_lag(results: dict[str, pd.DataFrame]) -> str:
         )
     print(f"\n=== Verdict ===\n{verdict}")
     return verdict
+
+
+def granger_bivariate(
+    crypto: pd.Series,
+    equity: pd.Series,
+    maxlag: int,
+) -> pd.DataFrame:
+    """
+    Test whether crypto Granger-causes equity at each lag 1..maxlag.
+
+    Uses the F-test (ssr_ftest) from statsmodels.grangercausalitytests.
+    Input order: equity is Y (to be forecast), crypto is X (potential cause).
+    Returns DataFrame indexed by lag with columns f_stat and p_raw.
+    """
+    from statsmodels.tsa.stattools import grangercausalitytests
+    data = pd.DataFrame({"equity": equity, "crypto": crypto}).dropna()
+    raw = grangercausalitytests(data, maxlag=maxlag, verbose=False)
+    rows = []
+    for lag, test_result in raw.items():
+        f_stat, p_val, _, _ = test_result[0]["ssr_ftest"]
+        rows.append({"lag": lag, "f_stat": f_stat, "p_raw": p_val})
+    return pd.DataFrame(rows).set_index("lag")
