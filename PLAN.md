@@ -1,5 +1,6 @@
 # Project Plan: BTC/ETH → S&P 500 Lead-Lag Analysis
 
+> **Implementation:** All 5 phases are completed in a single Claude Code session. The checklist below tracks in-session progress — phases are checkpoints, not session restart points.
 > **Rule:** Do not start a phase before the prior phase's checks all pass.
 > **Rule:** All decisions that are non-obvious or deviate from the spec go in the Decision Log below.
 

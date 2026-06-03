@@ -28,6 +28,43 @@ python scripts/run_all.py
 
 ---
 
+## Claude Code Setup
+
+### Permissions
+Create `.claude/settings.json` so Claude Code doesn't prompt on every tool call:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(python *)",
+      "Bash(.venv/Scripts/python *)",
+      "Bash(.venv/Scripts/pip *)",
+      "Bash(pip *)",
+      "Bash(git *)",
+      "Bash(mkdir *)",
+      "Bash(del *)"
+    ]
+  }
+}
+```
+
+### Skills to invoke during implementation
+
+| Skill | When to use |
+|-------|-------------|
+| `/superpowers:systematic-debugging` | When the pipeline errors or a phase check fails |
+| `/code-review` | After all 5 phases are complete |
+| `/verify` | To confirm figures and CSV outputs look correct |
+
+The `context7` MCP server is available — if statsmodels, scikit-learn, or yfinance API questions come up, it fetches current docs rather than relying on training data.
+
+### Working style
+- All 5 phases are implemented in a **single Claude Code session** — phases are progress checkpoints, not restart points
+- Press `#` at any point to have Claude update this file with anything non-obvious discovered during implementation
+
+---
+
 ## NON-NEGOTIABLE STATISTICAL RULES
 
 These rules apply to every file, every function, every plot. There are no exceptions.
@@ -135,30 +172,21 @@ Do not expand scope until all 5 phases are complete end-to-end on the minimal ve
 
 ## Git Workflow
 
-Commit after each meaningful unit of work — not after everything, not after every line.
-
-**Commit cadence by phase:**
-- Phase 1: one commit per completed function in `src/data.py`, one commit when `returns.csv` passes all checks
-- Phase 2–5: one commit per completed phase (all figures saved + README section written)
-- Never commit broken pipeline state — `scripts/run_all.py` must run clean before committing
+Commit once per phase, after all that phase's checks pass. Never commit a broken pipeline.
 
 **Commit message format:**
 ```
-phase1: add download_raw() with yfinance caching
-phase1: add align_to_equity_calendar() — maps UTC crypto close to equity date
-phase1: returns.csv passes all Phase 1 checks
+phase1: data pipeline passes all checks — returns.csv ready
 phase2: EDA figures saved, ADF stationarity confirmed
 phase3: lag correlation results — no significant lead effect after Bonferroni
+phase4: backtest complete, leakage check passed
+phase5: README writeup complete
 ```
 
-**What not to commit:**
-- `data/raw/*.csv` and `data/processed/*.csv` — add to `.gitignore`
-- `.venv/` — add to `.gitignore`
-- `figures/*.png` — optional; commit only final presentation figures if desired
-
-**Branch strategy (optional but recommended):**
-- `main` — clean, phase-complete snapshots only
-- `phase/1-data`, `phase/2-eda`, etc. — work branches; merge to main when phase checks pass
+**What not to commit** (already in `.gitignore`):
+- `data/raw/*.csv`, `data/processed/*.csv` — regenerable from pipeline
+- `.venv/` — local environment
+- `figures/*.png` — optional; commit final presentation figures only
 
 ---
 
