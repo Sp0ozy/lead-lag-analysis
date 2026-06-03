@@ -27,7 +27,7 @@ from src.model import (
 LAGS = [1, 2, 3, 5, 10]
 
 
-def phase1() -> None:
+def phase1():
     print("\n" + "=" * 60)
     print("PHASE 1 — Data Pipeline")
     print("=" * 60)
@@ -45,6 +45,7 @@ def phase1() -> None:
     assert 0.01 < eth_std < 0.25, f"Phase 1 FAIL: ETH std={eth_std:.4f} out of expected range"
     assert 0.002 < spx_std < 0.03, f"Phase 1 FAIL: SPX std={spx_std:.4f} out of expected range"
     print("\nPhase 1 checks: PASSED")
+    return returns
 
 
 def phase2(returns) -> None:
@@ -281,7 +282,7 @@ ADF stationarity tests confirm all three log-return series are stationary (p < 0
 | Test set size | {n_test} days |
 | Directional accuracy | {accuracy:.1%} |
 | Naive baseline (always "up") | {naive_acc:.1%} |
-| Leakage check (shuffled labels) | ≈ 50% (passed) |
+| Leakage check (permutation test) | ≈ naive baseline (passed) |
 
 ![Backtest](figures/backtest_results.png)
 
@@ -316,9 +317,7 @@ The model's directional accuracy {"exceeds" if accuracy > naive_acc else "does n
 
 if __name__ == "__main__":
     # Phase 1
-    phase1()
-    from src.data import build_returns as _br
-    returns = _br()
+    returns = phase1()
 
     # Phase 2
     phase2(returns)

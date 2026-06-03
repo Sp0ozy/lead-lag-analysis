@@ -95,13 +95,14 @@ def plot_lag_correlation(
         colors = ["tomato" if sig else "steelblue" for sig in df["significant_raw"]]
         ax.bar(df["lag"].astype(str), df["r"], color=colors, alpha=0.8)
         ax.axhline(0, color="black", linewidth=0.5)
-        # Bonferroni-corrected threshold on correlation (approximate via t-distribution)
-        n_avg = df["n"].mean()
+        # Bonferroni-corrected threshold on correlation (approximate via t-distribution).
+        # Use minimum n across lags for the most conservative (widest) threshold.
+        n_min = int(df["n"].min())
         n_tests = len(df) * 2
         bonf_p = bonferroni_alpha / n_tests
         from scipy import stats as _stats
-        t_crit = _stats.t.ppf(1 - bonf_p / 2, df=n_avg - 2)
-        r_crit = t_crit / np.sqrt(t_crit**2 + n_avg - 2)
+        t_crit = _stats.t.ppf(1 - bonf_p / 2, df=n_min - 2)
+        r_crit = t_crit / np.sqrt(t_crit**2 + n_min - 2)
         ax.axhline(r_crit, color="red", linewidth=1, linestyle="--", label=f"Bonferroni threshold (±{r_crit:.3f})")
         ax.axhline(-r_crit, color="red", linewidth=1, linestyle="--")
         ax.set_xlabel("Lag k (days)")
@@ -120,7 +121,6 @@ def plot_backtest(
     spx_returns: pd.Series,
 ) -> pathlib.Path:
     """Cumulative returns: model strategy vs buy-and-hold SPX."""
-    model_daily = y_pred.values * spx_returns.values  # long if predict up, short if predict down? No: predict direction, long only if up
     # Strategy: go long SPX if model predicts up (1), else stay flat (0)
     long_only = (y_pred.values == 1).astype(float) * spx_returns.values
     bh = spx_returns.values
@@ -144,7 +144,7 @@ def plot_backtest(
     baseline = (y_true.values == 1).mean()  # naive "always up" baseline
     ax2.bar(["Naive baseline\n(always up)", "Model accuracy"], [baseline, accuracy], color=["gray", "darkorange"])
     ax2.set_ylim(0, 1)
-    ax2.axhline(0.5, color="black", linestyle="--", linewidth=0.8, label="50% (chance)")
+    ax2.axhline(0.5, color="black", linestyle="--", linewidth=0.8, label="50% (coin-flip, ignores class imbalance)")
     ax2.set_ylabel("Directional accuracy")
     ax2.set_title("Directional Accuracy vs Naive Baseline")
     ax2.legend()

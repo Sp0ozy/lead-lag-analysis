@@ -120,7 +120,7 @@ ADF stationarity tests confirm all three log-return series are stationary (p < 0
 | Test set size | 355 days |
 | Directional accuracy | 57.5% |
 | Naive baseline (always "up") | 57.5% |
-| Leakage check (shuffled labels) | ≈ 50% (passed) |
+| Leakage check (permutation test) | ≈ naive baseline (passed) |
 
 ![Backtest](figures/backtest_results.png)
 

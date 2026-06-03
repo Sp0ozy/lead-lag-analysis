@@ -22,12 +22,20 @@ def _safe_symbol(symbol: str) -> str:
 
 
 def download_raw(symbol: str, start: str, end: str) -> pd.DataFrame:
-    """Download adjusted close from yfinance; load from cache if present."""
+    """Download adjusted close from yfinance; load from cache if data is current.
+
+    Cache is considered stale if its last date is more than 1 calendar day before
+    the requested end date (allowing for the fact that today's data may not yet
+    be published).
+    """
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     cache_path = RAW_DIR / f"{_safe_symbol(symbol)}.csv"
     if cache_path.exists():
         df = pd.read_csv(cache_path, index_col=0, parse_dates=True)
-        return df
+        cache_last = pd.Timestamp(df.index.max()).date()
+        end_date = pd.Timestamp(end).date()
+        if (end_date - cache_last).days <= 1:
+            return df
     ticker = yf.Ticker(symbol)
     df = ticker.history(start=start, end=end, auto_adjust=True)[["Close"]]
     df.index = df.index.tz_localize(None) if df.index.tz is not None else df.index
