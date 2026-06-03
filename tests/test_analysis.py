@@ -59,3 +59,24 @@ def test_select_var_lag_returns_int_in_range(synthetic_returns):
     lag = select_var_lag(synthetic_returns, maxlag=5)
     assert isinstance(lag, int)
     assert 1 <= lag <= 5
+
+# ── run_granger_analysis ──────────────────────────────────────────────────────
+def test_run_granger_analysis_structure(synthetic_returns):
+    from src.analysis import run_granger_analysis
+    results = run_granger_analysis(synthetic_returns, maxlag=5)
+    assert "aic_lag" in results
+    assert "BTC-USD" in results["assets"]
+    assert "ETH-USD" in results["assets"]
+    for asset_data in results["assets"].values():
+        assert "aic_result" in asset_data
+        assert "fixed_sweep" in asset_data
+        assert "var_pvalue" in asset_data
+        assert "p_bonferroni" in asset_data["fixed_sweep"].columns
+        assert "significant_bonferroni" in asset_data["fixed_sweep"].columns
+
+def test_summarize_granger_returns_string(synthetic_returns):
+    from src.analysis import run_granger_analysis, summarize_granger
+    results = run_granger_analysis(synthetic_returns, maxlag=3)
+    verdict = summarize_granger(results)
+    assert isinstance(verdict, str)
+    assert len(verdict) > 0

@@ -140,3 +140,97 @@ def granger_bivariate(
         f_stat, p_val, _, _ = test_result[0]["ssr_ftest"]
         rows.append({"lag": lag, "f_stat": f_stat, "p_raw": p_val})
     return pd.DataFrame(rows).set_index("lag")
+
+
+def run_granger_analysis(
+    returns: pd.DataFrame,
+    maxlag: int = 10,
+) -> dict:
+    """
+    Orchestrate Granger causality analysis for BTC->SPX and ETH->SPX.
+
+    Primary result: bivariate F-test at AIC-selected lag (Bonferroni n=2 assets).
+    Comparison: fixed-lag sweep at {1,2,3,5,10} (Bonferroni n=10, matches Phase 3).
+    Robustness: VAR Granger test at AIC-selected lag.
+    """
+    from statsmodels.tsa.vector_ar.var_model import VAR
+
+    fixed_lags = [1, 2, 3, 5, 10]
+    n_tests_aic = 2        # Bonferroni: 2 assets, 1 lag each
+    n_tests_fixed = 10     # Bonferroni: 2 assets x 5 lags
+
+    aic_lag = select_var_lag(returns, maxlag=maxlag)
+    print(f"\nAIC-optimal VAR lag order: {aic_lag}")
+
+    # Fit VAR for robustness check
+    var_fit = VAR(returns.dropna()).fit(aic_lag)
+
+    results: dict = {"aic_lag": aic_lag, "assets": {}}
+
+    print("\n=== Granger Causality Results ===")
+    for crypto_col in ["BTC-USD", "ETH-USD"]:
+        # AIC-selected result
+        aic_df = granger_bivariate(returns[crypto_col], returns["^GSPC"], maxlag=aic_lag)
+        aic_row = aic_df.tail(1).copy()
+        aic_row["p_bonferroni"] = (aic_row["p_raw"] * n_tests_aic).clip(upper=1.0)
+        aic_row["significant_raw"] = aic_row["p_raw"] < 0.05
+        aic_row["significant_bonferroni"] = aic_row["p_bonferroni"] < 0.05
+
+        # Fixed-lag sweep
+        full_df = granger_bivariate(returns[crypto_col], returns["^GSPC"], maxlag=max(fixed_lags))
+        fixed_df = full_df.loc[fixed_lags].copy()
+        fixed_df = apply_bonferroni(fixed_df, n_tests=n_tests_fixed)
+
+        # VAR robustness
+        var_test = var_fit.test_causality("^GSPC", [crypto_col], kind="f")
+        var_pvalue = float(var_test.pvalue)
+
+        results["assets"][crypto_col] = {
+            "aic_result": aic_row,
+            "fixed_sweep": fixed_df,
+            "var_pvalue": var_pvalue,
+        }
+
+        print(f"\n  {crypto_col} -> ^GSPC")
+        print(f"  AIC lag={aic_lag}: F={float(aic_row['f_stat'].iloc[0]):.3f}  "
+              f"p_raw={float(aic_row['p_raw'].iloc[0]):.4f}  "
+              f"p_bonferroni={float(aic_row['p_bonferroni'].iloc[0]):.4f}  "
+              f"significant={bool(aic_row['significant_bonferroni'].iloc[0])}")
+        print(f"  VAR robustness p={var_pvalue:.4f}")
+        print(f"  Fixed-lag sweep:")
+        print(fixed_df[["f_stat", "p_raw", "p_bonferroni", "significant_bonferroni"]].to_string())
+
+    return results
+
+
+def summarize_granger(results: dict) -> str:
+    """Plain-English verdict on Granger causality evidence."""
+    any_bonf = any(
+        bool(d["aic_result"]["significant_bonferroni"].any()) or
+        bool(d["fixed_sweep"]["significant_bonferroni"].any())
+        for d in results["assets"].values()
+    )
+    any_raw = any(
+        bool(d["aic_result"]["significant_raw"].any()) or
+        bool(d["fixed_sweep"]["significant_raw"].any())
+        for d in results["assets"].values()
+    )
+    if any_bonf:
+        verdict = (
+            "GRANGER CAUSALITY DETECTED: at least one test is significant after "
+            "Bonferroni correction. Audit for spurious regression before claiming "
+            "this is real."
+        )
+    elif any_raw:
+        verdict = (
+            "NO GRANGER CAUSALITY after Bonferroni correction. One or more lags "
+            "are nominally significant (p<0.05 uncorrected) -- consistent with noise "
+            "across 10 simultaneous tests (EXPLORATORY ONLY)."
+        )
+    else:
+        verdict = (
+            "NO GRANGER CAUSALITY. Crypto returns do not improve SPX forecasts "
+            "beyond SPX's own history at any lag tested."
+        )
+    print(f"\n=== Granger Verdict ===\n{verdict}")
+    return verdict
