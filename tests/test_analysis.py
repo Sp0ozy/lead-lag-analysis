@@ -134,3 +134,27 @@ def test_regime_granger_structure(synthetic_returns):
     for regime_name in ["high", "low"]:
         assert "aic_lag" in result[regime_name]
         assert "BTC-USD" in result[regime_name]["granger"]
+
+
+# ── run_phase7 ────────────────────────────────────────────────────────────────
+def test_run_phase7_structure():
+    from src.analysis import run_phase7
+    # Use 400 rows so rolling(30) inside run_phase7 leaves 371 rows,
+    # and median split gives ~185 per regime (>= 100 obs assertion).
+    np.random.seed(7)
+    n = 400
+    dates = pd.bdate_range("2021-01-01", periods=n)
+    returns = pd.DataFrame({
+        "BTC-USD": np.random.normal(0, 0.03, n),
+        "ETH-USD": np.random.normal(0, 0.04, n),
+        "^GSPC": np.random.normal(0, 0.01, n),
+    }, index=dates)
+    fake_vix = pd.Series(np.random.uniform(10, 40, n), index=dates, name="VIX")
+    result = run_phase7(returns, fake_vix, lags=[1, 2])
+    assert "VIX" in result
+    assert "Rolling Vol" in result
+    for label in ["VIX", "Rolling Vol"]:
+        assert "lag_analysis" in result[label]
+        assert "granger" in result[label]
+        assert "regimes" in result[label]
+        assert "signal" in result[label]

@@ -267,6 +267,47 @@ def run_regime_granger(
     return result
 
 
+def run_phase7(
+    returns: pd.DataFrame,
+    vix: pd.Series,
+    lags: list[int] = [1, 2, 3, 5, 10],
+    maxlag: int = 10,
+) -> dict:
+    """
+    Orchestrate Phase 7: regime conditioning using VIX and rolling SPX vol.
+
+    Returns nested dict keyed by regime label ("VIX", "Rolling Vol"), each
+    containing: regimes, signal, lag_analysis, granger.
+    """
+    rolling_vol = returns["^GSPC"].rolling(30).std()
+    common_idx = (
+        returns.index
+        .intersection(vix.dropna().index)
+        .intersection(rolling_vol.dropna().index)
+    )
+    returns_sub = returns.loc[common_idx]
+    vix_sub = vix.loc[common_idx]
+    rolling_vol_sub = rolling_vol.loc[common_idx]
+
+    result: dict = {}
+    print("\n=== Phase 7: Regime Conditioning ===")
+    for signal, label in [(vix_sub, "VIX"), (rolling_vol_sub, "Rolling Vol")]:
+        regimes = define_regimes(signal)
+        n_high = int(regimes.sum())
+        n_low = int((~regimes).sum())
+        print(f"\n  {label}: high={n_high} days, low={n_low} days "
+              f"(threshold={float(signal.median()):.4f})")
+        lag_analysis = run_regime_lag_analysis(returns_sub, regimes, label, lags)
+        granger = run_regime_granger(returns_sub, regimes, label, maxlag=maxlag)
+        result[label] = {
+            "regimes": regimes,
+            "signal": signal,
+            "lag_analysis": lag_analysis,
+            "granger": granger,
+        }
+    return result
+
+
 def summarize_granger(results: dict) -> str:
     """Plain-English verdict on Granger causality evidence."""
     any_bonf = any(
