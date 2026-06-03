@@ -6,8 +6,8 @@ import pathlib
 ROOT = pathlib.Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.data import build_returns, load_prices, align_to_equity_calendar
-from src.analysis import run_eda_stats, run_lag_analysis, summarize_lead_lag, run_granger_analysis, summarize_granger
+from src.data import build_returns, load_prices, align_to_equity_calendar, download_vix
+from src.analysis import run_eda_stats, run_lag_analysis, summarize_lead_lag, run_granger_analysis, summarize_granger, run_phase7
 from src.plots import (
     plot_prices,
     plot_returns,
@@ -16,6 +16,8 @@ from src.plots import (
     plot_lag_correlation,
     plot_backtest,
     plot_granger_pvalues,
+    plot_regime_bands,
+    plot_regime_lag_correlation,
 )
 from src.model import (
     make_features,
@@ -337,6 +339,28 @@ def phase6(returns) -> dict:
     return granger_results
 
 
+def phase7(returns, vix) -> dict:
+    print("\n" + "=" * 60)
+    print("PHASE 7 -- Regime Conditioning")
+    print("=" * 60)
+    p7_results = run_phase7(returns, vix, lags=LAGS)
+
+    for label, data in p7_results.items():
+        n_high = int(data["regimes"].sum())
+        n_low = int((~data["regimes"]).sum())
+        assert n_high >= 100, f"Phase 7 FAIL: [{label}] high regime has only {n_high} obs"
+        assert n_low >= 100, f"Phase 7 FAIL: [{label}] low regime has only {n_low} obs"
+
+        p = plot_regime_bands(data["signal"], data["regimes"], label)
+        print(f"Saved: {p}")
+
+        p = plot_regime_lag_correlation(data["lag_analysis"], label)
+        print(f"Saved: {p}")
+
+    print("\nPhase 7 checks: PASSED")
+    return p7_results
+
+
 if __name__ == "__main__":
     # Phase 1
     returns = phase1()
@@ -355,6 +379,10 @@ if __name__ == "__main__":
 
     # Phase 6
     granger_results = phase6(returns)
+
+    # Phase 7
+    vix = download_vix()
+    phase7(returns, vix)
 
     print("\n" + "=" * 60)
     print("ALL PHASES COMPLETE")

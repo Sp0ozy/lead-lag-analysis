@@ -142,6 +142,28 @@
 
 ---
 
+---
+
+## Phase 7 — Regime Conditioning
+
+**Goal:** Test whether lead-lag signal differs across high/low volatility regimes.
+
+### Tasks
+- [x] Implement `download_vix` in `src/data.py`
+- [x] Implement `define_regimes` in `src/analysis.py`
+- [x] Implement `run_regime_lag_analysis` + `run_regime_granger` + `run_phase7`
+- [x] Implement `plot_regime_bands` + `plot_regime_lag_correlation` in `src/plots.py`
+- [x] Wire `phase7()` into `scripts/run_all.py`
+
+### Phase 7 Checks
+- [x] Both regimes (VIX and rolling vol) have >= 100 obs in each half
+- [x] VIX data NaN-free after alignment
+- [x] Bonferroni applied within each regime (n_tests = lags x 2 assets)
+- [x] README Phase 7 section states whether any regime shows signal absent full-sample
+- [x] VIX-split and rolling-vol-split results compared in README
+
+---
+
 ## Decision Log
 
 *Record non-obvious choices here as they arise, so future readers understand why the code is the way it is.*
@@ -155,3 +177,6 @@
 | 2026-06-04 | Granger maxlag=10 | Matches Phase 3 lag horizon; AIC selects within this bound |
 | 2026-06-04 | Bivariate Granger primary, VAR as robustness | Bivariate is interpretable; VAR controls for BTC-ETH correlation |
 | 2026-06-04 | Bonferroni n=2 for AIC result, n=10 for fixed-lag sweep | AIC result tests 2 assets at one lag; fixed sweep tests 2 assets x 5 lags |
+| 2026-06-04 | Regime threshold = median | Equal regime sizes; avoids data-mining a threshold |
+| 2026-06-04 | Both VIX and rolling-vol regimes | VIX is industry standard; rolling vol is self-contained; compare for robustness |
+| 2026-06-04 | VIX used only as regime signal, not as analysis input | VIX levels are non-stationary; log returns are the analysis input within each regime |
