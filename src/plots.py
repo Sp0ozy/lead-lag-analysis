@@ -153,3 +153,44 @@ def plot_backtest(
 
     fig.tight_layout()
     return _save(fig, "backtest_results.png")
+
+
+def plot_granger_pvalues(
+    results: dict,
+    bonferroni_alpha: float = 0.05,
+) -> pathlib.Path:
+    """p-value by lag for BTC->SPX and ETH->SPX; Bonferroni threshold marked."""
+    n_tests_fixed = 10  # 2 assets x 5 lags
+    bonf_threshold = bonferroni_alpha / n_tests_fixed
+    aic_lag = results["aic_lag"]
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5), sharey=True)
+    assets = ["BTC-USD", "ETH-USD"]
+
+    for ax, asset in zip(axes, assets):
+        df = results["assets"][asset]["fixed_sweep"].reset_index()
+        colors = ["tomato" if p < 0.05 else "steelblue" for p in df["p_raw"]]
+        ax.bar(df["lag"].astype(str), df["p_raw"], color=colors, alpha=0.8)
+        ax.axhline(0.05, color="orange", linewidth=1.2, linestyle="--",
+                   label="p=0.05 (uncorrected)")
+        ax.axhline(bonf_threshold, color="red", linewidth=1.2, linestyle="--",
+                   label=f"p={bonf_threshold:.3f} (Bonferroni)")
+        if aic_lag in df["lag"].values:
+            ax.axvline(str(aic_lag), color="green", linewidth=1.5,
+                       linestyle=":", label=f"AIC-selected lag={aic_lag}")
+        ax.set_xlabel("Lag k (days)")
+        ax.set_ylabel("p-value (F-test)")
+        ax.set_ylim(0, 1.05)
+        ax.set_title(
+            f"{asset} -> ^GSPC Granger p-values\n"
+            f"(lower = stronger evidence; red dashed = Bonferroni threshold)"
+        )
+        ax.legend(fontsize=8)
+
+    fig.suptitle(
+        f"Granger Causality: Crypto[t-k] improves forecast of SPX[t]?\n"
+        f"Fixed-lag sweep  |  AIC-selected lag = {aic_lag}",
+        fontsize=12,
+    )
+    fig.tight_layout()
+    return _save(fig, "granger_pvalues.png")
