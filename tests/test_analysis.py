@@ -106,3 +106,31 @@ def test_define_regimes_name():
                        name="VIX")
     regimes = define_regimes(signal)
     assert regimes.name == "high_regime"
+
+
+# ── run_regime_lag_analysis ───────────────────────────────────────────────────
+def test_regime_lag_analysis_structure(synthetic_returns):
+    from src.analysis import define_regimes, run_regime_lag_analysis
+    # Use SPX column directly (200 rows) for regime signal — median split gives 100 per regime
+    signal = synthetic_returns["^GSPC"]
+    regimes = define_regimes(signal)
+    result = run_regime_lag_analysis(synthetic_returns, regimes, "test", lags=[1, 2])
+    assert "high" in result and "low" in result
+    for regime_name in ["high", "low"]:
+        assert "BTC-USD" in result[regime_name]
+        assert "^GSPC" not in result[regime_name]
+        for asset_df in result[regime_name].values():
+            assert "p_bonferroni" in asset_df.columns
+            assert "r" in asset_df.columns
+
+# ── run_regime_granger ────────────────────────────────────────────────────────
+def test_regime_granger_structure(synthetic_returns):
+    from src.analysis import define_regimes, run_regime_granger
+    # Use SPX column directly (200 rows) for regime signal — median split gives 100 per regime
+    signal = synthetic_returns["^GSPC"]
+    regimes = define_regimes(signal)
+    result = run_regime_granger(synthetic_returns, regimes, "test", maxlag=3)
+    assert "high" in result and "low" in result
+    for regime_name in ["high", "low"]:
+        assert "aic_lag" in result[regime_name]
+        assert "BTC-USD" in result[regime_name]["granger"]

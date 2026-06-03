@@ -209,6 +209,64 @@ def define_regimes(signal: pd.Series, threshold: float = None) -> pd.Series:
     return (signal >= t).rename("high_regime")
 
 
+def run_regime_lag_analysis(
+    returns: pd.DataFrame,
+    regimes: pd.Series,
+    label: str,
+    lags: list[int],
+) -> dict[str, dict[str, pd.DataFrame]]:
+    """
+    Run Phase 3 lag correlation + Bonferroni within high and low regime subsets.
+
+    Returns {"high": {"BTC-USD": df, "ETH-USD": df},
+             "low":  {"BTC-USD": df, "ETH-USD": df}}
+    """
+    n_tests = len(lags) * 2
+    result: dict = {}
+    for regime_name, mask in [("high", regimes), ("low", ~regimes)]:
+        idx = returns.index[returns.index.isin(mask[mask].index)]
+        sub = returns.loc[idx]
+        assert len(sub) >= 100, (
+            f"[{label}] {regime_name} regime has only {len(sub)} obs -- "
+            f"too few for reliable inference (need >= 100)"
+        )
+        print(f"\n  [{label}] {regime_name} regime: n={len(sub)}")
+        regime_asset_results: dict = {}
+        for crypto_col in ["BTC-USD", "ETH-USD"]:
+            df = lagged_correlation(sub[crypto_col], sub["^GSPC"], lags)
+            df = apply_bonferroni(df, n_tests=n_tests)
+            regime_asset_results[crypto_col] = df
+        result[regime_name] = regime_asset_results
+    return result
+
+
+def run_regime_granger(
+    returns: pd.DataFrame,
+    regimes: pd.Series,
+    label: str,
+    maxlag: int = 10,
+) -> dict:
+    """
+    Run Granger bivariate test within high and low regime subsets.
+
+    Returns {"high": {"aic_lag": int, "granger": {"BTC-USD": df, "ETH-USD": df}},
+             "low":  {"aic_lag": int, "granger": {"BTC-USD": df, "ETH-USD": df}}}
+    """
+    result: dict = {}
+    for regime_name, mask in [("high", regimes), ("low", ~regimes)]:
+        idx = returns.index[returns.index.isin(mask[mask].index)]
+        sub = returns.loc[idx]
+        safe_maxlag = max(1, min(maxlag, len(sub) // 20))
+        aic_lag = select_var_lag(sub, maxlag=safe_maxlag)
+        granger_asset: dict = {}
+        for crypto_col in ["BTC-USD", "ETH-USD"]:
+            df = granger_bivariate(sub[crypto_col], sub["^GSPC"], maxlag=aic_lag)
+            granger_asset[crypto_col] = df
+        result[regime_name] = {"aic_lag": aic_lag, "granger": granger_asset}
+        print(f"  [{label}] {regime_name} regime Granger AIC lag: {aic_lag}, n={len(sub)}")
+    return result
+
+
 def summarize_granger(results: dict) -> str:
     """Plain-English verdict on Granger causality evidence."""
     any_bonf = any(
