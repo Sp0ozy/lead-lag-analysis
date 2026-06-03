@@ -52,3 +52,10 @@ def test_granger_bivariate_detects_true_cause(causal_returns):
     )
     # With 0.6 * BTC[t-1] causing SPX[t], p at lag 1 must be very small
     assert result.loc[1, "p_raw"] < 0.001
+
+# ── select_var_lag ────────────────────────────────────────────────────────────
+def test_select_var_lag_returns_int_in_range(synthetic_returns):
+    from src.analysis import select_var_lag
+    lag = select_var_lag(synthetic_returns, maxlag=5)
+    assert isinstance(lag, int)
+    assert 1 <= lag <= 5

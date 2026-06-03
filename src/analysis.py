@@ -112,6 +112,14 @@ def summarize_lead_lag(results: dict[str, pd.DataFrame]) -> str:
     return verdict
 
 
+def select_var_lag(returns: pd.DataFrame, maxlag: int = 10) -> int:
+    """Fit VAR on returns; return AIC-optimal lag order (minimum 1)."""
+    from statsmodels.tsa.vector_ar.var_model import VAR
+    model = VAR(returns.dropna())
+    order_result = model.select_order(maxlags=maxlag)
+    return max(1, int(order_result.aic))
+
+
 def granger_bivariate(
     crypto: pd.Series,
     equity: pd.Series,
