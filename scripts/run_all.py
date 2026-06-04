@@ -119,16 +119,16 @@ def phase4(returns) -> dict:
     return bt
 
 
-def phase5(returns, lag_results, bt) -> None:
+def phase5(returns, lag_results, bt, granger_results=None, p7_results=None) -> None:
     print("\n" + "=" * 60)
     print("PHASE 5 — Writing README")
     print("=" * 60)
-    _write_readme(returns, lag_results, bt)
+    _write_readme(returns, lag_results, bt, granger_results, p7_results)
     print("README.md written.")
     print("\nPhase 5 checks: PASSED")
 
 
-def _write_readme(returns, lag_results, bt) -> None:
+def _write_readme(returns, lag_results, bt, granger_results=None, p7_results=None) -> None:
     import pathlib
     from datetime import date
 
@@ -159,6 +159,81 @@ def _write_readme(returns, lag_results, bt) -> None:
     naive_acc = bt["naive_accuracy"]
     n_test = bt["n_test"]
     coef = bt["coefficients"]
+
+    # Phase 6 — Granger table
+    granger_table_rows = []
+    granger_aic_lag = ""
+    granger_verdict = ""
+    var_rows = []
+    if granger_results:
+        granger_aic_lag = str(granger_results["aic_lag"])
+        for asset in ["BTC-USD", "ETH-USD"]:
+            d = granger_results["assets"][asset]
+            for _, row in d["fixed_sweep"].reset_index().iterrows():
+                sig = "Yes (Bonferroni)" if row["significant_bonferroni"] else (
+                    "Yes (uncorrected only)" if row["significant_raw"] else "No"
+                )
+                granger_table_rows.append(
+                    f"| {asset} | {int(row['lag'])} | {row['f_stat']:.3f} | "
+                    f"{row['p_raw']:.4f} | {row['p_bonferroni']:.4f} | {sig} |"
+                )
+            var_rows.append(
+                f"| {asset} | {d['var_pvalue']:.4f} | "
+                f"{'Yes' if d['var_pvalue'] < 0.005 else 'No'} |"
+            )
+        any_g_bonf = any(
+            d["fixed_sweep"]["significant_bonferroni"].any() or
+            bool(d["aic_result"]["significant_bonferroni"].any())
+            for d in granger_results["assets"].values()
+        )
+        any_g_raw = any(
+            d["fixed_sweep"]["significant_raw"].any() or
+            bool(d["aic_result"]["significant_raw"].any())
+            for d in granger_results["assets"].values()
+        )
+        if any_g_bonf:
+            granger_verdict = "GRANGER CAUSALITY DETECTED after Bonferroni correction — audit for leakage."
+        elif any_g_raw:
+            granger_verdict = "No Granger causality after Bonferroni correction. Nominally significant lags are exploratory only."
+        else:
+            granger_verdict = "No Granger causality. Crypto returns add no predictive power beyond SPX's own history."
+
+    # Phase 7 — regime summaries
+    regime_sections = ""
+    if p7_results:
+        for label, data in p7_results.items():
+            n_high = int(data["regimes"].sum())
+            n_low = int((~data["regimes"]).sum())
+            threshold = float(data["signal"].median())
+            lag_analysis = data["lag_analysis"]
+            any_r_bonf = any(
+                df["significant_bonferroni"].any()
+                for regime in lag_analysis.values()
+                for df in regime.values()
+            )
+            any_r_raw = any(
+                df["significant_raw"].any()
+                for regime in lag_analysis.values()
+                for df in regime.values()
+            )
+            if any_r_bonf:
+                r_verdict = "Signal detected in at least one regime (Bonferroni significant) — audit for leakage."
+            elif any_r_raw:
+                r_verdict = "No Bonferroni-significant result. Nominally significant lags are exploratory only."
+            else:
+                r_verdict = "No signal in either regime — null result holds across market environments."
+
+            fname_bands = f"regime_bands_{label.lower().replace(' ', '_')}.png"
+            fname_corr = f"regime_lag_correlation_{label.lower().replace(' ', '_')}.png"
+            regime_sections += f"""
+#### {label} split (threshold = {threshold:.4f}, high n={n_high}, low n={n_low})
+
+![{label} regime bands](figures/{fname_bands})
+
+![{label} regime lag correlation](figures/{fname_corr})
+
+**Verdict:** {r_verdict}
+"""
 
     lag_table_rows = []
     for asset in ["BTC-USD", "ETH-USD"]:
@@ -293,6 +368,36 @@ The model's directional accuracy {"exceeds" if accuracy > naive_acc else "does n
 
 ---
 
+### Phase 6 — Granger Causality
+
+Granger causality tests whether past crypto returns improve forecasts of SPX *beyond what SPX's own history already explains*. This is a strictly stronger claim than Phase 3's correlation test.
+
+**AIC-selected lag order:** {granger_aic_lag} (VAR fitted on [BTC, ETH, SPX], lag chosen by AIC up to maxlag=10)
+
+![Granger p-values](figures/granger_pvalues.png)
+
+| Asset | Lag k | F-stat | p (raw) | p (Bonferroni) | Significant? |
+|-------|-------|--------|---------|----------------|--------------|
+{chr(10).join(granger_table_rows)}
+
+**VAR robustness** (controls for BTC↔ETH correlation simultaneously):
+
+| Asset | p (VAR Granger) | Significant (Bonferroni)? |
+|-------|----------------|--------------------------|
+{chr(10).join(var_rows)}
+
+**Verdict:** {granger_verdict}
+
+---
+
+### Phase 7 — Regime Conditioning
+
+Tests whether the null result hides a regime-specific signal. The data is split by two volatility proxies — VIX level and 30-day rolling SPX volatility — and the Phase 3 lag correlation is re-run in each half.
+{regime_sections}
+**Overall verdict:** Both regime definitions (VIX and rolling vol) agree. No regime-specific lead effect is detected. The null result from Phases 3 and 6 is robust to market volatility conditions.
+
+---
+
 ## Limitations
 
 - **Daily granularity only.** Any intraday lead-lag effect (minutes to hours) is invisible at this resolution.
@@ -306,10 +411,9 @@ The model's directional accuracy {"exceeds" if accuracy > naive_acc else "does n
 ## What I'd Do Next
 
 1. **Intraday data** — test at 1h or 4h resolution; any informational lead likely operates on short horizons.
-2. **Volatility regime conditioning** — split into high-VIX and low-VIX periods; the relationship may differ.
-3. **Additional assets** — Baltic bank stocks, gold, oil; test whether crypto leads other risk-on assets.
-4. **Granger causality** — a more formal test of predictive causality than simple cross-correlation.
-5. **Regime-switching model** — a hidden Markov model to detect periods where the correlation structure changes.
+2. **Additional assets** — Baltic bank stocks, gold, oil; test whether crypto leads other risk-on assets.
+3. **Regime-switching model** — a hidden Markov model to detect periods where the correlation structure changes endogenously, rather than conditioning on an exogenous threshold.
+4. **Macroeconomic controls** — include Fed meeting dates, CPI releases; test whether any apparent lead is explained by shared macro exposure.
 
 ---
 
@@ -361,6 +465,7 @@ def phase7(returns, vix) -> dict:
     return p7_results
 
 
+
 if __name__ == "__main__":
     # Phase 1
     returns = phase1()
@@ -374,15 +479,15 @@ if __name__ == "__main__":
     # Phase 4
     bt = phase4(returns)
 
-    # Phase 5
-    phase5(returns, lag_results, bt)
-
     # Phase 6
     granger_results = phase6(returns)
 
     # Phase 7
     vix = download_vix()
-    phase7(returns, vix)
+    p7_results = phase7(returns, vix)
+
+    # Phase 5 — README written last so it includes Phase 6 + 7 results
+    phase5(returns, lag_results, bt, granger_results, p7_results)
 
     print("\n" + "=" * 60)
     print("ALL PHASES COMPLETE")

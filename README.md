@@ -128,6 +128,62 @@ The model's directional accuracy does not meaningfully exceed the naive baseline
 
 ---
 
+### Phase 6 — Granger Causality
+
+Granger causality tests whether past crypto returns improve forecasts of SPX *beyond what SPX's own history already explains*. This is a strictly stronger claim than Phase 3's correlation test.
+
+**AIC-selected lag order:** 1 (VAR fitted on [BTC, ETH, SPX], lag chosen by AIC up to maxlag=10)
+
+![Granger p-values](figures/granger_pvalues.png)
+
+| Asset | Lag k | F-stat | p (raw) | p (Bonferroni) | Significant? |
+|-------|-------|--------|---------|----------------|--------------|
+| BTC-USD | 1 | 0.749 | 0.3868 | 1.0000 | No |
+| BTC-USD | 2 | 0.497 | 0.6084 | 1.0000 | No |
+| BTC-USD | 3 | 0.584 | 0.6253 | 1.0000 | No |
+| BTC-USD | 5 | 0.730 | 0.6013 | 1.0000 | No |
+| BTC-USD | 10 | 0.826 | 0.6032 | 1.0000 | No |
+| ETH-USD | 1 | 3.195 | 0.0741 | 0.7410 | No |
+| ETH-USD | 2 | 1.942 | 0.1438 | 1.0000 | No |
+| ETH-USD | 3 | 2.065 | 0.1030 | 1.0000 | No |
+| ETH-USD | 5 | 1.429 | 0.2109 | 1.0000 | No |
+| ETH-USD | 10 | 0.900 | 0.5325 | 1.0000 | No |
+
+**VAR robustness** (controls for BTC↔ETH correlation simultaneously):
+
+| Asset | p (VAR Granger) | Significant (Bonferroni)? |
+|-------|----------------|--------------------------|
+| BTC-USD | 0.3754 | No |
+| ETH-USD | 0.0724 | No |
+
+**Verdict:** No Granger causality. Crypto returns add no predictive power beyond SPX's own history.
+
+---
+
+### Phase 7 — Regime Conditioning
+
+Tests whether the null result hides a regime-specific signal. The data is split by two volatility proxies — VIX level and 30-day rolling SPX volatility — and the Phase 3 lag correlation is re-run in each half.
+
+#### VIX split (threshold = 17.9900, high n=666, low n=664)
+
+![VIX regime bands](figures/regime_bands_vix.png)
+
+![VIX regime lag correlation](figures/regime_lag_correlation_vix.png)
+
+**Verdict:** No signal in either regime — null result holds across market environments.
+
+#### Rolling Vol split (threshold = 0.0083, high n=665, low n=665)
+
+![Rolling Vol regime bands](figures/regime_bands_rolling_vol.png)
+
+![Rolling Vol regime lag correlation](figures/regime_lag_correlation_rolling_vol.png)
+
+**Verdict:** No signal in either regime — null result holds across market environments.
+
+**Overall verdict:** Both regime definitions (VIX and rolling vol) agree. No regime-specific lead effect is detected. The null result from Phases 3 and 6 is robust to market volatility conditions.
+
+---
+
 ## Limitations
 
 - **Daily granularity only.** Any intraday lead-lag effect (minutes to hours) is invisible at this resolution.
@@ -141,10 +197,9 @@ The model's directional accuracy does not meaningfully exceed the naive baseline
 ## What I'd Do Next
 
 1. **Intraday data** — test at 1h or 4h resolution; any informational lead likely operates on short horizons.
-2. **Volatility regime conditioning** — split into high-VIX and low-VIX periods; the relationship may differ.
-3. **Additional assets** — Baltic bank stocks, gold, oil; test whether crypto leads other risk-on assets.
-4. **Granger causality** — a more formal test of predictive causality than simple cross-correlation.
-5. **Regime-switching model** — a hidden Markov model to detect periods where the correlation structure changes.
+2. **Additional assets** — Baltic bank stocks, gold, oil; test whether crypto leads other risk-on assets.
+3. **Regime-switching model** — a hidden Markov model to detect periods where the correlation structure changes endogenously, rather than conditioning on an exogenous threshold.
+4. **Macroeconomic controls** — include Fed meeting dates, CPI releases; test whether any apparent lead is explained by shared macro exposure.
 
 ---
 
