@@ -115,7 +115,9 @@ def summarize_lead_lag(results: dict[str, pd.DataFrame]) -> str:
 def select_var_lag(returns: pd.DataFrame, maxlag: int = 10) -> int:
     """Fit VAR on returns; return AIC-optimal lag order (minimum 1)."""
     from statsmodels.tsa.vector_ar.var_model import VAR
-    model = VAR(returns.dropna())
+    # reset_index: VAR warns when DatetimeIndex has no freq (equity calendar has gaps).
+    # Column names are preserved; dates are not needed for lag selection.
+    model = VAR(returns.dropna().reset_index(drop=True))
     order_result = model.select_order(maxlags=maxlag)
     return max(1, int(order_result.aic))
 
@@ -132,9 +134,12 @@ def granger_bivariate(
     Input order: equity is Y (to be forecast), crypto is X (potential cause).
     Returns DataFrame indexed by lag with columns f_stat and p_raw.
     """
+    import warnings
     from statsmodels.tsa.stattools import grangercausalitytests
     data = pd.DataFrame({"equity": equity, "crypto": crypto}).dropna()
-    raw = grangercausalitytests(data, maxlag=maxlag, verbose=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+        raw = grangercausalitytests(data, maxlag=maxlag, verbose=False)
     rows = []
     for lag, test_result in raw.items():
         f_stat, p_val, _, _ = test_result[0]["ssr_ftest"]
@@ -162,8 +167,8 @@ def run_granger_analysis(
     aic_lag = select_var_lag(returns, maxlag=maxlag)
     print(f"\nAIC-optimal VAR lag order: {aic_lag}")
 
-    # Fit VAR for robustness check
-    var_fit = VAR(returns.dropna()).fit(aic_lag)
+    # Fit VAR for robustness check (reset_index: same reason as select_var_lag)
+    var_fit = VAR(returns.dropna().reset_index(drop=True)).fit(aic_lag)
 
     results: dict = {"aic_lag": aic_lag, "assets": {}}
 
